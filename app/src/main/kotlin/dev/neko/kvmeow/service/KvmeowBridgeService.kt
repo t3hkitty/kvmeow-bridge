@@ -30,6 +30,7 @@ class KvmeowBridgeService : Service() {
 
     companion object {
         const val ACTION_SEND_KEY = "dev.neko.kvmeow.ACTION_SEND_KEY"
+        const val ACTION_SEND_TEXT = "dev.neko.kvmeow.ACTION_SEND_TEXT"
         const val ACTION_SEND_MOUSE = "dev.neko.kvmeow.ACTION_SEND_MOUSE"
         const val ACTION_FLIP_HOST = "dev.neko.kvmeow.ACTION_FLIP_HOST"
         const val ACTION_TOGGLE_CAFFEINE = "dev.neko.kvmeow.ACTION_TOGGLE_CAFFEINE"
@@ -39,6 +40,7 @@ class KvmeowBridgeService : Service() {
 
         const val EXTRA_MODIFIER = "modifier"
         const val EXTRA_KEYCODES = "keycodes"
+        const val EXTRA_TEXT = "text"
         const val EXTRA_BUTTONS = "buttons"
         const val EXTRA_DX = "dx"
         const val EXTRA_DY = "dy"
@@ -57,6 +59,12 @@ class KvmeowBridgeService : Service() {
                     val mod = intent.getByteExtra(EXTRA_MODIFIER, 0)
                     val keys = intent.getByteArrayExtra(EXTRA_KEYCODES) ?: ByteArray(0)
                     hidManager.sendKeyboardReport(mod, keys)
+                }
+                ACTION_SEND_TEXT -> {
+                    val text = intent.getStringExtra(EXTRA_TEXT)
+                    if (!text.isNullOrEmpty()) {
+                        Thread { hidManager.sendTextDirect(text) }.start()
+                    }
                 }
                 ACTION_SEND_MOUSE -> {
                     val buttons = intent.getByteExtra(EXTRA_BUTTONS, 0)

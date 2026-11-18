@@ -80,9 +80,30 @@ class BluetoothHidManager(private val context: Context) {
     fun getActiveHost(): BluetoothDevice? = activeDevice
 
     fun selectHost(device: BluetoothDevice) {
-        if (connectedDevices.contains(device)) {
-            activeDevice = device
-            onActiveHostChangedListener?.invoke(device)
+        activeDevice = device
+        if (!connectedDevices.contains(device)) {
+            connectHost(device)
+        }
+        onActiveHostChangedListener?.invoke(device)
+    }
+
+    @SuppressLint("MissingPermission")
+    fun connectHost(device: BluetoothDevice): Boolean {
+        return try {
+            hidDevice?.connect(device) ?: false
+        } catch (e: SecurityException) {
+            Log.e("BluetoothHidManager", "SecurityException connecting host", e)
+            false
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun disconnectHost(device: BluetoothDevice): Boolean {
+        return try {
+            hidDevice?.disconnect(device) ?: false
+        } catch (e: SecurityException) {
+            Log.e("BluetoothHidManager", "SecurityException disconnecting host", e)
+            false
         }
     }
 
@@ -95,13 +116,45 @@ class BluetoothHidManager(private val context: Context) {
         for (i in 0 until minOf(keyCodes.size, 6)) {
             report[2 + i] = keyCodes[i]
         }
-        return hidDevice?.sendReport(dev, 1, report) ?: false
+        val sent = hidDevice?.sendReport(dev, 1, report) ?: false
+        if (modifier != 0.toByte() || keyCodes.any { it != 0.toByte() }) {
+            // Auto-send release report after delay so keys don't stick
+            try {
+                Thread.sleep(15)
+                hidDevice?.sendReport(dev, 1, ByteArray(8))
+            } catch (_: Exception) {}
+        }
+        return sent
+    }
+
+    @SuppressLint("MissingPermission")
+    fun sendKeyStroke(char: Char, target: BluetoothDevice? = activeDevice): Boolean {
+        val stroke = HidScancodes.getScancodeForAscii(char)
+        if (stroke.scancode == HidScancodes.KEY_NONE) return false
+        return sendKeyboardReport(stroke.modifier, byteArrayOf(stroke.scancode), target)
+    }
+
+    @SuppressLint("MissingPermission")
+    fun sendTextDirect(text: String, target: BluetoothDevice? = activeDevice) {
+        for (ch in text) {
+            sendKeyStroke(ch, target)
+            try {
+                Thread.sleep(10)
+            } catch (_: Exception) {}
+        }
     }
 
     @SuppressLint("MissingPermission")
     fun sendMouseReport(buttons: Byte, dx: Byte, dy: Byte, wheel: Byte, target: BluetoothDevice? = activeDevice): Boolean {
         val dev = target ?: return false
         val report = byteArrayOf(buttons, dx, dy, wheel)
-        return hidDevice?.sendReport(dev, 2, report) ?: false
+        val sent = hidDevice?.sendReport(dev, 2, report) ?: false
+        if (buttons != 0.toByte()) {
+            try {
+                Thread.sleep(20)
+                hidDevice?.sendReport(dev, 2, byteArrayOf(0, 0, 0, 0))
+            } catch (_: Exception) {}
+        }
+        return sent
     }
 }
