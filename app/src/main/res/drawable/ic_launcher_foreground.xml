@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- 🐾 Kawaiian Bluetooth Neko Robot/Bridge Icon 🐾 -->
+    <!-- Left Antenna / Ear -->
+    <path
+        android:fillColor="#E6E6FA"
+        android:strokeColor="#2E1A47"
+        android:strokeWidth="2.5"
+        android:pathData="M32,46 L24,22 L46,32 Z" />
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M33,42 L27,25 L42,33 Z" />
+
+    <!-- Right Antenna / Ear -->
+    <path
+        android:fillColor="#E6E6FA"
+        android:strokeColor="#2E1A47"
+        android:strokeWidth="2.5"
+        android:pathData="M76,46 L84,22 L62,32 Z" />
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M75,42 L81,25 L66,33 Z" />
+
+    <!-- Plump Head / Bridge Console -->
+    <path
+        android:fillColor="#E6E6FA"
+        android:strokeColor="#2E1A47"
+        android:strokeWidth="2.5"
+        android:pathData="M54,32 C34,32 24,44 24,62 C24,78 36,86 54,86 C72,86 84,78 84,62 C84,44 74,32 54,32 Z" />
+
+    <!-- Glowing Cyber Eyes -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M38,54 A5,5 0 1,0 48,54 A5,5 0 1,0 38,54 Z" />
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M60,54 A5,5 0 1,0 70,54 A5,5 0 1,0 60,54 Z" />
+
+    <!-- Bluetooth Emblem on Chest / Bridge -->
+    <path
+        android:strokeColor="#6A3D9A"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,68 L54,82 L60,78 L49,72 L59,66 L54,72" />
+    
+    <!-- Floating Caffeine Coffee Bean / Cup Badge on Top Right -->
+    <path
+        android:fillColor="#FFAFCC"
+        android:strokeColor="#2E1A47"
+        android:strokeWidth="2"
+        android:pathData="M78,22 A9,9 0 1,0 96,22 A9,9 0 1,0 78,22 Z" />
+    <!-- Coffee Steam -->
+    <path
+        android:strokeColor="#2E1A47"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M84,21 Q87,17 84,15 M89,21 Q92,17 89,15" />
+</vector>
