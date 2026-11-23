@@ -18,11 +18,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher_foreground"
-        android:label="KVMeow Bridge"
+        android:label="KVMeowboard"
         android:roundIcon="@drawable/ic_launcher_foreground"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
@@ -41,6 +42,11 @@
             android:name=".service.KvmeowBridgeService"
             android:exported="true"
             android:foregroundServiceType="connectedDevice" />
+
+        <service
+            android:name="net.artkitty.kvmeowboard.hid.KvMeowHidService"
+            android:foregroundServiceType="connectedDevice"
+            android:exported="false" />
 
         <service
             android:name=".service.CaffeineTileService"

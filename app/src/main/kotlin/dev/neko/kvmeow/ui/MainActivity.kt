@@ -1130,6 +1130,15 @@ fun KvmeowDeckScreen(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text("• ShubhamJ010/ghost-hid (MIT) — 4-Report Composite HID\n• ToxicOrca/ghostboard (MIT) — Background HID & Sniff-Pulse\n• AppGround-io / Blek — UI Inspiration & Touchpad Workflow\n• KDE Connect (GPL-2.0) — Protocol Harvest", color = theme.secondaryText, fontSize = 9.sp)
 
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "💖 Blek Companion / Support AppGround IO (io.appground.blek)",
+                        color = theme.accentPrimary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Button(

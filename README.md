@@ -30,6 +30,7 @@
 
 3. **[AppGround-io/bluetooth-keyboard-and-mouse-support](https://github.com/AppGround-io/bluetooth-keyboard-and-mouse-support)**:
    - UI styling inspiration, high-contrast non-blocking deck workspace, touchpad layout, and connectivity hardening.
+   - **Blek Companion / Support AppGround IO**: `io.appground.blek` / [AppGround IO Bluetooth Keyboard & Mouse](https://github.com/AppGround-io/bluetooth-keyboard-and-mouse-support).
 
 4. **[KDE/kdeconnect-android](https://invent.kde.org/network/kdeconnect-android)** (`GPL-2.0-or-later`):
    - Protocol harvest for clipboard synchronization, remote mousepad packets, and notification mirroring (documented in `HARVEST_KDECONNECT_ANYMD.md`).
