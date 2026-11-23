@@ -20,6 +20,12 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <permission
+        android:name="net.artkitty.kvmeowboard.permission.CONTROL_HID"
+        android:protectionLevel="normal" />
+
+    <uses-permission android:name="net.artkitty.kvmeowboard.permission.CONTROL_HID" />
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher_foreground"
@@ -29,7 +35,7 @@
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity
-            android:name=".ui.MainActivity"
+            android:name="net.artkitty.kvmeowboard.MainActivity"
             android:exported="true"
             android:theme="@android:style/Theme.Material.NoActionBar">
             <intent-filter>
@@ -37,6 +43,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
 
         <service
             android:name=".service.KvmeowBridgeService"
@@ -49,6 +60,17 @@
             android:exported="false" />
 
         <service
+            android:name="net.artkitty.kvmeowboard.hid.KvMeowJiggleTileService"
+            android:exported="true"
+            android:label="KV Jiggle"
+            android:icon="@drawable/ic_launcher_foreground"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
             android:name=".service.CaffeineTileService"
             android:exported="true"
             android:label="Caffeine Jitter"
@@ -58,6 +80,21 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <receiver
+            android:name="net.artkitty.kvmeowboard.hid.KvMeowBroadcastReceiver"
+            android:exported="true"
+            android:permission="net.artkitty.kvmeowboard.permission.CONTROL_HID">
+            <intent-filter>
+                <action android:name="net.artkitty.kvmeowboard.ACTION_SEND_HID" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kvmeowboard" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>

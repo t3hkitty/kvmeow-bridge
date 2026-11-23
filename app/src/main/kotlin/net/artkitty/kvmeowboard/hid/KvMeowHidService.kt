@@ -21,8 +21,15 @@ import androidx.core.app.NotificationCompat
  */
 class KvMeowHidService : Service() {
 
-    private lateinit var hidController: BluetoothHidController
+    lateinit var hidController: BluetoothHidController
+        private set
     private var wakeLock: PowerManager.WakeLock? = null
+
+    inner class LocalBinder : android.os.Binder() {
+        fun getService(): KvMeowHidService = this@KvMeowHidService
+    }
+
+    private val binder = LocalBinder()
 
     companion object {
         const val CHANNEL_ID = "kvmeowboard_hid_channel"
@@ -49,7 +56,6 @@ class KvMeowHidService : Service() {
         when (intent?.action) {
             ACTION_START_JIGGLE -> {
                 hidController.startMultiHostJiggler({
-                    // Defaults to currently active host if bonded
                     listOfNotNull(hidController.getActiveHost())
                 })
                 updateNotification("Jiggler Active", "Emitting zero-drift Report 2 micro-ticks")
@@ -60,6 +66,17 @@ class KvMeowHidService : Service() {
             }
         }
         return START_STICKY
+    }
+
+    fun refreshJiggler(hostsProvider: () -> List<BluetoothDevice>, intervalSeconds: Long = 35L) {
+        val targets = hostsProvider()
+        if (targets.isEmpty()) {
+            hidController.stopJiggler()
+            updateNotification("KVMeowboard HID Active", "Jiggler OFF • Keyboard/Mouse ready")
+        } else {
+            hidController.startMultiHostJiggler(hostsProvider, intervalSeconds)
+            updateNotification("Jiggler Active (${targets.size} hosts)", "Zero-drift micro-ticks every ${intervalSeconds}s")
+        }
     }
 
     private fun acquireWakeLock() {
@@ -104,5 +121,5 @@ class KvMeowHidService : Service() {
         super.onDestroy()
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onBind(intent: Intent?): IBinder = binder
 }

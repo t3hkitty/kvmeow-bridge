@@ -168,6 +168,13 @@ class BluetoothHidController(private val context: Context) {
         }
     }
 
+    fun releaseAllModifiers() {
+        hidExecutor.execute {
+            val host = activeHost ?: return@execute
+            hidDevice?.sendReport(host, HidDescriptor.REPORT_ID_KEYBOARD, byteArrayOf(0, 0, 0, 0, 0, 0, 0, 0))
+        }
+    }
+
     fun sendKeyboardReport(modifierMask: Byte, keyCode: Byte) {
         val host = activeHost ?: return
         hidExecutor.execute {
@@ -182,6 +189,20 @@ class BluetoothHidController(private val context: Context) {
             hidDevice?.sendReport(host, HidDescriptor.REPORT_ID_KEYBOARD, byteArrayOf(modifierMask, 0, keyCode, 0, 0, 0, 0, 0))
             Thread.sleep(holdMs)
             hidDevice?.sendReport(host, HidDescriptor.REPORT_ID_KEYBOARD, byteArrayOf(0, 0, 0, 0, 0, 0, 0, 0))
+        }
+    }
+
+    fun sendKeyChord(modifierMask: Byte, keyCodes: List<Byte>, holdMs: Long = 22L) {
+        val host = activeHost ?: return
+        hidExecutor.execute {
+            val keys = ByteArray(6) { idx -> keyCodes.getOrElse(idx) { 0x00.toByte() } }
+            val pressPayload = byteArrayOf(
+                modifierMask, 0x00,
+                keys[0], keys[1], keys[2], keys[3], keys[4], keys[5]
+            )
+            hidDevice?.sendReport(host, HidDescriptor.REPORT_ID_KEYBOARD, pressPayload)
+            Thread.sleep(holdMs)
+            hidDevice?.sendReport(host, HidDescriptor.REPORT_ID_KEYBOARD, ByteArray(8))
         }
     }
 
