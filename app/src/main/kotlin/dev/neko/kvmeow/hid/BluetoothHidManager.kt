@@ -41,11 +41,11 @@ class BluetoothHidManager(private val context: Context) {
     @SuppressLint("MissingPermission")
     private fun registerApp() {
         val sdp = android.bluetooth.BluetoothHidDeviceAppSdpSettings(
-            "KVMeow Bridge",
-            "Kawaiian Bluetooth HID & Host Switcher",
+            "KVMeowboard",
+            "KVMeowboard Combo Keyboard Mouse System Consumer HID",
             "t3hkitty",
             BluetoothHidDevice.SUBCLASS1_COMBO,
-            HidReportDescriptor.COMBO_REPORT_DESCRIPTOR
+            GhostCompositeHidDescriptor.COMPOSITE_4_REPORT_DESCRIPTOR
         )
 
         val qos = android.bluetooth.BluetoothHidDeviceAppQosSettings(

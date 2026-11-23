@@ -64,6 +64,16 @@ class MainActivity : ComponentActivity() {
     private lateinit var deckPrefs: DeckPreferences
     private lateinit var imeManager: PerAppImeAndGestureManager
 
+    private var audioRecorder: dev.neko.kvmeow.audio.MeetingAudioRecorder? = null
+    private var pcmBridgeReceiver: dev.neko.kvmeow.audio.PcmAudioBridgeReceiver? = null
+
+    private var isAudioRecording by mutableStateOf(false)
+    private var audioElapsedMs by mutableStateOf(0L)
+    private var audioAmplitudeRms by mutableStateOf(0f)
+    private var isAudioBridgeRunning by mutableStateOf(false)
+    private var audioBridgeStatusText by mutableStateOf("Ready (Port 28200)")
+    private var lastSavedAudioFile by mutableStateOf<java.io.File?>(null)
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
@@ -97,6 +107,22 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         deckPrefs = DeckPreferences(this)
         imeManager = PerAppImeAndGestureManager(this)
+
+        audioRecorder = dev.neko.kvmeow.audio.MeetingAudioRecorder(this).apply {
+            onAmplitudeUpdated = { rms -> audioAmplitudeRms = rms }
+            onDurationUpdated = { dur -> audioElapsedMs = dur }
+            onRecordingFinished = { file, _ ->
+                lastSavedAudioFile = file
+                isAudioRecording = false
+            }
+        }
+
+        pcmBridgeReceiver = dev.neko.kvmeow.audio.PcmAudioBridgeReceiver(this).apply {
+            onConnectionStateChanged = { connected, msg ->
+                isAudioBridgeRunning = connected
+                audioBridgeStatusText = msg
+            }
+        }
 
         val serviceIntent = Intent(this, KvmeowBridgeService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -146,7 +172,33 @@ class MainActivity : ComponentActivity() {
                 onAppExpose = { sendAppExpose() },
                 onToggleCaffeine = { toggleCaffeine() },
                 onScanRefresh = { refreshBluetoothState() },
-                onShowImePicker = { imeManager.showImePicker() }
+                onShowImePicker = { imeManager.showImePicker() },
+                isAudioRecording = isAudioRecording,
+                audioElapsedMs = audioElapsedMs,
+                audioAmplitudeRms = audioAmplitudeRms,
+                isAudioBridgeRunning = isAudioBridgeRunning,
+                audioBridgeStatusText = audioBridgeStatusText,
+                lastSavedAudioFile = lastSavedAudioFile,
+                onToggleRecording = {
+                    if (isAudioRecording) {
+                        audioRecorder?.stopRecording()
+                        isAudioRecording = false
+                    } else {
+                        audioRecorder?.startRecording()
+                        isAudioRecording = true
+                    }
+                },
+                onToggleAudioBridge = {
+                    if (pcmBridgeReceiver?.isRunning() == true) {
+                        pcmBridgeReceiver?.stop()
+                        isAudioBridgeRunning = false
+                        audioBridgeStatusText = "Bridge Stopped"
+                    } else {
+                        pcmBridgeReceiver?.startServer()
+                        isAudioBridgeRunning = true
+                        audioBridgeStatusText = "Listening (Port 28200)..."
+                    }
+                }
             )
         }
     }
@@ -342,7 +394,15 @@ fun KvmeowDeckScreen(
     onAppExpose: () -> Unit,
     onToggleCaffeine: () -> Unit,
     onScanRefresh: () -> Unit,
-    onShowImePicker: () -> Unit
+    onShowImePicker: () -> Unit,
+    isAudioRecording: Boolean = false,
+    audioElapsedMs: Long = 0L,
+    audioAmplitudeRms: Float = 0f,
+    isAudioBridgeRunning: Boolean = false,
+    audioBridgeStatusText: String = "",
+    lastSavedAudioFile: java.io.File? = null,
+    onToggleRecording: () -> Unit = {},
+    onToggleAudioBridge: () -> Unit = {}
 ) {
     var currentThemeEnum by remember {
         mutableStateOf(
@@ -573,6 +633,23 @@ fun KvmeowDeckScreen(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // ==========================================
+        // 🎙️ MEETING AUDIO CAPTURE & HEADSET ROUTING
+        // ==========================================
+        MeetingAudioControlCard(
+            theme = theme,
+            isRecording = isAudioRecording,
+            elapsedMs = audioElapsedMs,
+            amplitudeRms = audioAmplitudeRms,
+            isBridgeActive = isAudioBridgeRunning,
+            bridgeStatus = audioBridgeStatusText,
+            lastSavedFile = lastSavedAudioFile,
+            onToggleRecording = onToggleRecording,
+            onToggleBridge = onToggleAudioBridge
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1045,6 +1122,13 @@ fun KvmeowDeckScreen(
                     ) {
                         Text("Select System / Per-App IME", color = theme.primaryText, fontSize = 12.sp)
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // FOSS & Attribution Section
+                    Text("⚖️ FOSS Attribution & Upstream", color = theme.primaryText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("• ShubhamJ010/ghost-hid (MIT) — 4-Report Composite HID\n• ToxicOrca/ghostboard (MIT) — Background HID & Sniff-Pulse\n• AppGround-io / Blek — UI Inspiration & Touchpad Workflow\n• KDE Connect (GPL-2.0) — Protocol Harvest", color = theme.secondaryText, fontSize = 9.sp)
 
                     Spacer(modifier = Modifier.height(12.dp))
 

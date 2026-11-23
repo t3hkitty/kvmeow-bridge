@@ -16,6 +16,22 @@
   - `dev.neko.kvmeow.ACTION_FLIP_HOST` (select active computer by MAC)
   - `dev.neko.kvmeow.ACTION_TOGGLE_CAFFEINE` (start/stop background jitter)
 
-## ⚖️ Permissive Open-Source Foundations
-* Modeled on [DeskHop](https://github.com/DeskHop) & [LanMouse](https://github.com/feschber/lanmouse) Bluetooth HID loops (MIT / Permissive FOSS).
-* Zero host drivers required — works natively on Windows, macOS, Linux, ChromeOS, and Android.
+## ⚖️ Permissive Open-Source Foundations & Harvested References
+
+`KVMeowboard` (KVMeow Bridge) layers custom multi-host switcher, background jiggler, and audio routing features onto battle-tested FOSS Android HID patterns:
+
+1. **[ShubhamJ010/ghost-hid](https://github.com/ShubhamJ010/ghost-hid)** (`MIT License`):
+   - Native Android `BluetoothHidDevice` SDP registration and 4-report composite HID descriptor (Report 1: 8-byte Keyboard, Report 2: 4-byte Relative Mouse, Report 3: 1-byte System Control, Report 4: 2-byte Consumer Control).
+   - Driverless bonding on Windows 10/11, Apple macOS, Linux, and ChromeOS without desktop agent software.
+
+2. **[ToxicOrca/ghostboard-android-bluetooth-mouse-keyboard](https://github.com/ToxicOrca/ghostboard-android-bluetooth-mouse-keyboard)** (`MIT License`):
+   - Dedicated background-threaded HID dispatch pipeline.
+   - Sniff-mode idle wake-up pulse to prevent latency spikes on first key/mouse interaction after sleep.
+
+3. **[AppGround-io/bluetooth-keyboard-and-mouse-support](https://github.com/AppGround-io/bluetooth-keyboard-and-mouse-support)**:
+   - UI styling inspiration, high-contrast non-blocking deck workspace, touchpad layout, and connectivity hardening.
+
+4. **[KDE/kdeconnect-android](https://invent.kde.org/network/kdeconnect-android)** (`GPL-2.0-or-later`):
+   - Protocol harvest for clipboard synchronization, remote mousepad packets, and notification mirroring (documented in `HARVEST_KDECONNECT_ANYMD.md`).
+
+All custom additions—including the 3-theme engine (`Tron`, `Dark Kawaii`, `Bright Kawaii`), per-host zero-net micro-jitter engine, sticky modifier hold buttons, OxygenOS screenshot gesture suppression, 3-finger macOS swipe mapper, `^` 10-key accountant calculator, and dual-track meeting audio capture (`AudioRecord` + LAN/USB PCM audio bridge)—operate under the permissive open-source license terms of this project.
