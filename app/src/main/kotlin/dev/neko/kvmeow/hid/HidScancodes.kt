@@ -103,6 +103,26 @@ object HidScancodes {
     const val KEY_DOWN: Byte = 0x51
     const val KEY_UP: Byte = 0x52
 
+    // Keypad / 10-Key (Page 0x07, section 12)
+    const val KEY_NUM_LOCK: Byte = 0x53
+    const val KEY_KP_SLASH: Byte = 0x54
+    const val KEY_KP_ASTERISK: Byte = 0x55
+    const val KEY_KP_MINUS: Byte = 0x56
+    const val KEY_KP_PLUS: Byte = 0x57
+    const val KEY_KP_ENTER: Byte = 0x58
+    const val KEY_KP_1: Byte = 0x59
+    const val KEY_KP_2: Byte = 0x5A
+    const val KEY_KP_3: Byte = 0x5B
+    const val KEY_KP_4: Byte = 0x5C
+    const val KEY_KP_5: Byte = 0x5D
+    const val KEY_KP_6: Byte = 0x5E
+    const val KEY_KP_7: Byte = 0x5F
+    const val KEY_KP_8: Byte = 0x60
+    const val KEY_KP_9: Byte = 0x61
+    const val KEY_KP_0: Byte = 0x62
+    const val KEY_KP_DOT: Byte = 0x63
+    const val KEY_KP_EQUAL: Byte = 0x67
+
     /**
      * Helper representing a packaged key state.
      */

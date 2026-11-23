@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -30,11 +32,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import dev.neko.kvmeow.hid.HidScancodes
 import dev.neko.kvmeow.service.KvmeowBridgeService
 
 /**
@@ -105,6 +112,8 @@ class MainActivity : ComponentActivity() {
                 isCaffeineActive = isCaffeineActive,
                 onSwitchHost = { mac -> switchHost(mac) },
                 onSendDirectText = { text -> sendDirectText(text) },
+                onSendRawKeycode = { scancode, mod -> sendRawKeycode(scancode, mod) },
+                onSendMouseReport = { buttons, dx, dy, wheel -> sendMouseReport(buttons, dx, dy, wheel) },
                 onToggleCaffeine = { toggleCaffeine() },
                 onScanRefresh = { refreshBluetoothState() }
             )
@@ -186,6 +195,24 @@ class MainActivity : ComponentActivity() {
         sendBroadcast(intent)
     }
 
+    private fun sendRawKeycode(scancode: Byte, modifier: Byte = 0) {
+        val intent = Intent(KvmeowBridgeService.ACTION_SEND_RAW_KEYCODE).apply {
+            putExtra(KvmeowBridgeService.EXTRA_SCANCODE, scancode)
+            putExtra(KvmeowBridgeService.EXTRA_MODIFIER, modifier)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendMouseReport(buttons: Byte, dx: Byte, dy: Byte, wheel: Byte = 0) {
+        val intent = Intent(KvmeowBridgeService.ACTION_SEND_MOUSE).apply {
+            putExtra(KvmeowBridgeService.EXTRA_BUTTONS, buttons)
+            putExtra(KvmeowBridgeService.EXTRA_DX, dx)
+            putExtra(KvmeowBridgeService.EXTRA_DY, dy)
+            putExtra(KvmeowBridgeService.EXTRA_WHEEL, wheel)
+        }
+        sendBroadcast(intent)
+    }
+
     private fun toggleCaffeine() {
         val intent = Intent(KvmeowBridgeService.ACTION_TOGGLE_CAFFEINE)
         sendBroadcast(intent)
@@ -219,10 +246,14 @@ fun KvmeowConsoleScreen(
     isCaffeineActive: Boolean,
     onSwitchHost: (String) -> Unit,
     onSendDirectText: (String) -> Unit,
+    onSendRawKeycode: (Byte, Byte) -> Unit,
+    onSendMouseReport: (Byte, Byte, Byte, Byte) -> Unit,
     onToggleCaffeine: () -> Unit,
     onScanRefresh: () -> Unit
 ) {
     var directInputText by remember { mutableStateOf("") }
+    var showNumpadModal by remember { mutableStateOf(false) }
+    var isNumpadFullScreen by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -274,7 +305,7 @@ fun KvmeowConsoleScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // ⚠️ Permission Alert Banner (if missing)
         if (!hasPermissions) {
@@ -313,17 +344,35 @@ fun KvmeowConsoleScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         // 🚀 1-Tap Recent Device Switcher Strip
-        Text(
-            text = "⚡ RECENT DEVICES (1-Tap Switch)",
-            color = AccentLilac,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "⚡ HOST SWITCHER",
+                color = AccentLilac,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+            IconButton(
+                onClick = onScanRefresh,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Scan Refresh",
+                    tint = SoftLavender
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
 
         Row(
             modifier = Modifier
@@ -331,7 +380,6 @@ fun KvmeowConsoleScreen(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Android Local
             HostChip(
                 label = "📱 Local Android",
                 subLabel = "Local IME",
@@ -339,7 +387,6 @@ fun KvmeowConsoleScreen(
                 onClick = { onSwitchHost("") }
             )
 
-            // Paired & Connected Hosts
             for ((name, mac) in bondedHosts) {
                 val isSelected = activeHostMac == mac
                 val isConnected = hostMacs.contains(mac)
@@ -358,9 +405,9 @@ fun KvmeowConsoleScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // ⚡ Direct Live Keyboard Typing Card
+        // 🖱️ AppGround-Style Touchpad Area
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = DeepIndigo),
@@ -368,36 +415,144 @@ fun KvmeowConsoleScreen(
                 .fillMaxWidth()
                 .border(2.dp, CardPurple, RoundedCornerShape(20.dp))
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "⚡ Direct Mode (Live Host Typing)",
+                        text = "🖱️ Touchpad (Swipe cursor • Tap L-Click)",
+                        color = AmberGold,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "2-Finger: R-Click",
+                        color = AccentLilac,
+                        fontSize = 10.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Gesture Touchpad Surface
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .background(DarkSlate, RoundedCornerShape(14.dp))
+                        .border(1.dp, CardPurple, RoundedCornerShape(14.dp))
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                val dx = dragAmount.x.coerceIn(-127f, 127f).toInt().toByte()
+                                val dy = dragAmount.y.coerceIn(-127f, 127f).toInt().toByte()
+                                onSendMouseReport(0, dx, dy, 0)
+                            }
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = {
+                                    onSendMouseReport(1, 0, 0, 0) // Left click
+                                },
+                                onDoubleTap = {
+                                    onSendMouseReport(1, 0, 0, 0)
+                                    onSendMouseReport(1, 0, 0, 0)
+                                },
+                                onLongPress = {
+                                    onSendMouseReport(2, 0, 0, 0) // Right click
+                                }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🐾 Drag to steer mouse\nTap to click • Long-press right click",
+                        color = SoftLavender.copy(alpha = 0.5f),
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Mouse Click Bar (Left, Middle/Scroll, Right)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { onSendMouseReport(1, 0, 0, 0) },
+                        modifier = Modifier.weight(2f).height(42.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CardPurple),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Left Click", color = SoftLavender, fontSize = 11.sp)
+                    }
+
+                    Button(
+                        onClick = { onSendMouseReport(4, 0, 0, 0) },
+                        modifier = Modifier.weight(1f).height(42.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CardPurple.copy(alpha = 0.8f)),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Wheel", color = SoftLavender, fontSize = 11.sp)
+                    }
+
+                    Button(
+                        onClick = { onSendMouseReport(2, 0, 0, 0) },
+                        modifier = Modifier.weight(2f).height(42.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CardPurple),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Right Click", color = SoftLavender, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // ⌨️ IME Pops Up Under Touchpad Pad
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = DeepIndigo),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(2.dp, CardPurple, RoundedCornerShape(18.dp))
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⌨️ Live Keyboard / IME Input",
                         color = AmberGold,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 13.sp
                     )
-                    IconButton(
-                        onClick = onScanRefresh,
-                        modifier = Modifier.size(28.dp)
+
+                    // 10-Key Pop-Out Button ^
+                    Button(
+                        onClick = { showNumpadModal = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = KawaiiPink),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(30.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Scan Refresh",
-                            tint = SoftLavender
+                        Text(
+                            text = "^ 10-KEY",
+                            color = DarkSlate,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
                         )
                     }
                 }
 
-                Text(
-                    text = "Type or dictate here — every keystroke is piped straight to the active computer in real-time!",
-                    color = SoftLavender,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
-                )
+                Spacer(modifier = Modifier.height(6.dp))
 
                 OutlinedTextField(
                     value = directInputText,
@@ -405,18 +560,16 @@ fun KvmeowConsoleScreen(
                         if (newText.length > directInputText.length) {
                             val added = newText.substring(directInputText.length)
                             onSendDirectText(added)
+                        } else if (newText.length < directInputText.length) {
+                            onSendRawKeycode(HidScancodes.KEY_BACKSPACE, HidScancodes.MODIFIER_NONE)
                         }
                         directInputText = newText
-                        if (directInputText.length > 50) {
+                        if (directInputText.length > 60) {
                             directInputText = ""
                         }
                     },
                     placeholder = {
-                        Text(
-                            "Type directly to computer...",
-                            color = AccentLilac,
-                            fontSize = 13.sp
-                        )
+                        Text("Tap here to pop up IME keyboard...", color = AccentLilac, fontSize = 12.sp)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -428,36 +581,57 @@ fun KvmeowConsoleScreen(
                         unfocusedBorderColor = CardPurple
                     ),
                     shape = RoundedCornerShape(12.dp),
-                    singleLine = false,
-                    maxLines = 3
+                    singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // 🎯 Arrow Keys Strip Right Under IME
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     QuickKeyButton(
-                        label = "Enter ⏎",
+                        label = "Esc",
                         modifier = Modifier.weight(1f),
-                        onClick = { onSendDirectText("\n") }
+                        onClick = { onSendRawKeycode(HidScancodes.KEY_ESCAPE, HidScancodes.MODIFIER_NONE) }
                     )
                     QuickKeyButton(
-                        label = "Tab ⇥",
+                        label = "Tab",
                         modifier = Modifier.weight(1f),
-                        onClick = { onSendDirectText("\t") }
+                        onClick = { onSendRawKeycode(HidScancodes.KEY_TAB, HidScancodes.MODIFIER_NONE) }
                     )
                     QuickKeyButton(
-                        label = "Space ␣",
+                        label = "◀",
                         modifier = Modifier.weight(1f),
-                        onClick = { onSendDirectText(" ") }
+                        onClick = { onSendRawKeycode(HidScancodes.KEY_LEFT, HidScancodes.MODIFIER_NONE) }
+                    )
+                    QuickKeyButton(
+                        label = "▲",
+                        modifier = Modifier.weight(1f),
+                        onClick = { onSendRawKeycode(HidScancodes.KEY_UP, HidScancodes.MODIFIER_NONE) }
+                    )
+                    QuickKeyButton(
+                        label = "▼",
+                        modifier = Modifier.weight(1f),
+                        onClick = { onSendRawKeycode(HidScancodes.KEY_DOWN, HidScancodes.MODIFIER_NONE) }
+                    )
+                    QuickKeyButton(
+                        label = "▶",
+                        modifier = Modifier.weight(1f),
+                        onClick = { onSendRawKeycode(HidScancodes.KEY_RIGHT, HidScancodes.MODIFIER_NONE) }
+                    )
+                    QuickKeyButton(
+                        label = "⏎",
+                        modifier = Modifier.weight(1f),
+                        onClick = { onSendRawKeycode(HidScancodes.KEY_ENTER, HidScancodes.MODIFIER_NONE) }
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // 💜 Status & Host Ledger Info
         Card(
@@ -465,11 +639,11 @@ fun KvmeowConsoleScreen(
             colors = CardDefaults.cardColors(containerColor = CardPurple),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = "💜 [#zettelkasten] Host Ledger",
+                    text = "💜 Host Ledger & Telemetry",
                     color = SoftLavender,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
@@ -477,7 +651,7 @@ fun KvmeowConsoleScreen(
                     color = AmberGold,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(top = 4.dp)
+                    modifier = Modifier.padding(top = 2.dp)
                 )
                 Text(
                     text = "Connected Hosts: ${if (connectedHosts.isEmpty()) "None (idle/advertising)" else connectedHosts.joinToString(", ")}",
@@ -485,6 +659,194 @@ fun KvmeowConsoleScreen(
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 2.dp)
                 )
+            }
+        }
+    }
+
+    // 🧮 Aggressive 10-Key Pop-Out Accountant Calculator Dialog
+    if (showNumpadModal) {
+        Dialog(
+            onDismissRequest = {
+                showNumpadModal = false
+                isNumpadFullScreen = false
+            },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = !isNumpadFullScreen
+            )
+        ) {
+            Card(
+                shape = RoundedCornerShape(if (isNumpadFullScreen) 0.dp else 24.dp),
+                colors = CardDefaults.cardColors(containerColor = DeepIndigo),
+                modifier = (if (isNumpadFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                    .border(2.dp, CardPurple, RoundedCornerShape(if (isNumpadFullScreen) 0.dp else 24.dp))
+            ) {
+                AccountantTenKeyContent(
+                    isFullScreen = isNumpadFullScreen,
+                    onToggleFullScreen = { isNumpadFullScreen = !isNumpadFullScreen },
+                    onClose = {
+                        showNumpadModal = false
+                        isNumpadFullScreen = false
+                    },
+                    onSendScancode = { code -> onSendRawKeycode(code, HidScancodes.MODIFIER_NONE) },
+                    onSendChar = { ch -> onSendDirectText(ch.toString()) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AccountantTenKeyContent(
+    isFullScreen: Boolean,
+    onToggleFullScreen: () -> Unit,
+    onClose: () -> Unit,
+    onSendScancode: (Byte) -> Unit,
+    onSendChar: (Char) -> Unit
+) {
+    var calcDisplay by remember { mutableStateOf("0") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Modal Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🧮", fontSize = 20.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isFullScreen) "Full Accountant Calculator" else "Aggressive 10-Key Pad",
+                    color = AmberGold,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+            }
+
+            Row {
+                IconButton(onClick = onToggleFullScreen) {
+                    Icon(
+                        imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                        contentDescription = "Toggle Fullscreen",
+                        tint = SoftLavender
+                    )
+                }
+                IconButton(onClick = onClose) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = SoftLavender
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Calculator Tape / Display Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(DarkSlate, RoundedCornerShape(12.dp))
+                .border(1.dp, CardPurple, RoundedCornerShape(12.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Text(
+                text = calcDisplay,
+                color = AmberGold,
+                fontSize = if (isFullScreen) 32.sp else 24.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // 10-Key Matrix with aggressive numpad HID scancodes
+        val keyRows = listOf(
+            listOf(
+                Triple("Num", HidScancodes.KEY_NUM_LOCK, CardPurple),
+                Triple("/", HidScancodes.KEY_KP_SLASH, CardPurple),
+                Triple("*", HidScancodes.KEY_KP_ASTERISK, CardPurple),
+                Triple("-", HidScancodes.KEY_KP_MINUS, CardPurple)
+            ),
+            listOf(
+                Triple("7", HidScancodes.KEY_KP_7, DeepIndigo),
+                Triple("8", HidScancodes.KEY_KP_8, DeepIndigo),
+                Triple("9", HidScancodes.KEY_KP_9, DeepIndigo),
+                Triple("+", HidScancodes.KEY_KP_PLUS, CardPurple)
+            ),
+            listOf(
+                Triple("4", HidScancodes.KEY_KP_4, DeepIndigo),
+                Triple("5", HidScancodes.KEY_KP_5, DeepIndigo),
+                Triple("6", HidScancodes.KEY_KP_6, DeepIndigo),
+                Triple("BS", HidScancodes.KEY_BACKSPACE, KawaiiPink.copy(alpha = 0.6f))
+            ),
+            listOf(
+                Triple("1", HidScancodes.KEY_KP_1, DeepIndigo),
+                Triple("2", HidScancodes.KEY_KP_2, DeepIndigo),
+                Triple("3", HidScancodes.KEY_KP_3, DeepIndigo),
+                Triple("⏎", HidScancodes.KEY_KP_ENTER, AccentLilac)
+            ),
+            listOf(
+                Triple("0", HidScancodes.KEY_KP_0, DeepIndigo),
+                Triple("00", HidScancodes.KEY_NONE, DeepIndigo),
+                Triple(".", HidScancodes.KEY_KP_DOT, DeepIndigo),
+                Triple("CLR", HidScancodes.KEY_ESCAPE, KawaiiPink)
+            )
+        )
+
+        for (row in keyRows) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for ((label, scancode, color) in row) {
+                    Button(
+                        onClick = {
+                            if (label == "CLR") {
+                                calcDisplay = "0"
+                                onSendScancode(scancode)
+                            } else if (label == "00") {
+                                calcDisplay = if (calcDisplay == "0") "0" else calcDisplay + "00"
+                                onSendScancode(HidScancodes.KEY_KP_0)
+                                onSendScancode(HidScancodes.KEY_KP_0)
+                            } else {
+                                if (scancode != HidScancodes.KEY_NONE) {
+                                    onSendScancode(scancode)
+                                }
+                                if (label in "0123456789.") {
+                                    calcDisplay = if (calcDisplay == "0") label else calcDisplay + label
+                                } else if (label in listOf("+", "-", "*", "/")) {
+                                    calcDisplay += " $label "
+                                } else if (label == "BS") {
+                                    calcDisplay = if (calcDisplay.length > 1) calcDisplay.dropLast(1) else "0"
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = color),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(if (isFullScreen) 68.dp else 52.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (color == KawaiiPink) DarkSlate else AmberGold,
+                            fontSize = if (isFullScreen) 20.sp else 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }

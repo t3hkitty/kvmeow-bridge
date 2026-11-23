@@ -30,6 +30,7 @@ class KvmeowBridgeService : Service() {
 
     companion object {
         const val ACTION_SEND_KEY = "dev.neko.kvmeow.ACTION_SEND_KEY"
+        const val ACTION_SEND_RAW_KEYCODE = "dev.neko.kvmeow.ACTION_SEND_RAW_KEYCODE"
         const val ACTION_SEND_TEXT = "dev.neko.kvmeow.ACTION_SEND_TEXT"
         const val ACTION_SEND_MOUSE = "dev.neko.kvmeow.ACTION_SEND_MOUSE"
         const val ACTION_FLIP_HOST = "dev.neko.kvmeow.ACTION_FLIP_HOST"
@@ -40,6 +41,7 @@ class KvmeowBridgeService : Service() {
 
         const val EXTRA_MODIFIER = "modifier"
         const val EXTRA_KEYCODES = "keycodes"
+        const val EXTRA_SCANCODE = "scancode"
         const val EXTRA_TEXT = "text"
         const val EXTRA_BUTTONS = "buttons"
         const val EXTRA_DX = "dx"
@@ -59,6 +61,13 @@ class KvmeowBridgeService : Service() {
                     val mod = intent.getByteExtra(EXTRA_MODIFIER, 0)
                     val keys = intent.getByteArrayExtra(EXTRA_KEYCODES) ?: ByteArray(0)
                     hidManager.sendKeyboardReport(mod, keys)
+                }
+                ACTION_SEND_RAW_KEYCODE -> {
+                    val mod = intent.getByteExtra(EXTRA_MODIFIER, 0)
+                    val scancode = intent.getByteExtra(EXTRA_SCANCODE, 0)
+                    if (scancode != 0.toByte()) {
+                        hidManager.sendRawKeycode(scancode, mod)
+                    }
                 }
                 ACTION_SEND_TEXT -> {
                     val text = intent.getStringExtra(EXTRA_TEXT)
@@ -109,6 +118,7 @@ class KvmeowBridgeService : Service() {
 
         val filter = IntentFilter().apply {
             addAction(ACTION_SEND_KEY)
+            addAction(ACTION_SEND_RAW_KEYCODE)
             addAction(ACTION_SEND_MOUSE)
             addAction(ACTION_FLIP_HOST)
             addAction(ACTION_TOGGLE_CAFFEINE)

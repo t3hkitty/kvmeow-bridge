@@ -16,6 +16,9 @@ class BluetoothHidManager(private val context: Context) {
     private val connectedDevices = mutableSetOf<BluetoothDevice>()
     private var activeDevice: BluetoothDevice? = null
 
+    private var isAppRegistered = false
+    private var lastActiveAddress: String? = null
+
     var onHostListChangedListener: (() -> Unit)? = null
     var onActiveHostChangedListener: ((BluetoothDevice?) -> Unit)? = null
 
@@ -29,6 +32,7 @@ class BluetoothHidManager(private val context: Context) {
 
         override fun onServiceDisconnected(profile: Int) {
             if (profile == BluetoothProfile.HID_DEVICE) {
+                isAppRegistered = false
                 hidDevice = null
             }
         }
@@ -50,12 +54,19 @@ class BluetoothHidManager(private val context: Context) {
         )
 
         hidDevice?.registerApp(sdp, qos, null, Runnable::run, object : BluetoothHidDevice.Callback() {
+            override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
+                super.onAppStatusChanged(pluggedDevice, registered)
+                isAppRegistered = registered
+                Log.d("BluetoothHidManager", "HID App Registration Status: $registered")
+            }
+
             override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
                 super.onConnectionStateChanged(device, state)
                 device ?: return
                 when (state) {
                     BluetoothProfile.STATE_CONNECTED -> {
                         connectedDevices.add(device)
+                        lastActiveAddress = device.address
                         if (activeDevice == null) {
                             activeDevice = device
                             onActiveHostChangedListener?.invoke(device)
@@ -135,6 +146,11 @@ class BluetoothHidManager(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
+    fun sendRawKeycode(scancode: Byte, modifier: Byte = HidScancodes.MODIFIER_NONE, target: BluetoothDevice? = activeDevice): Boolean {
+        return sendKeyboardReport(modifier, byteArrayOf(scancode), target)
+    }
+
+    @SuppressLint("MissingPermission")
     fun sendTextDirect(text: String, target: BluetoothDevice? = activeDevice) {
         for (ch in text) {
             sendKeyStroke(ch, target)
@@ -156,5 +172,14 @@ class BluetoothHidManager(private val context: Context) {
             } catch (_: Exception) {}
         }
         return sent
+    }
+
+    /**
+     * Send an idle wake-up pulse to prevent host Bluetooth controller from going into deep sniff mode.
+     */
+    @SuppressLint("MissingPermission")
+    fun sendWakeUpPulse(target: BluetoothDevice? = activeDevice): Boolean {
+        val dev = target ?: return false
+        return hidDevice?.sendReport(dev, 2, byteArrayOf(0, 0, 0, 0)) ?: false
     }
 }
