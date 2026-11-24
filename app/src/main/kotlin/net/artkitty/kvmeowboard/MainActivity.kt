@@ -34,34 +34,38 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences("kvmeowboard_prefs", Context.MODE_PRIVATE)
     }
 
-    private val modifierMachine = ModifierStateMachine()
-    private val calcController = AccountantCalculatorController { total ->
-        hidService?.hidController?.let { hid ->
-            AsciiHidKeymap.typeAsciiString(total, modifierMachine.currentMask(), hid)
-            modifierMachine.consumeOneShots()
+    private val modifierMachine by lazy { ModifierStateMachine() }
+    private val calcController by lazy {
+        AccountantCalculatorController { total ->
+            hidService?.hidController?.let { hid ->
+                AsciiHidKeymap.typeAsciiString(total, modifierMachine.currentMask(), hid)
+                modifierMachine.consumeOneShots()
+            }
         }
     }
 
     private var hidService: KvMeowHidService? = null
     private var serviceBound by mutableStateOf(false)
 
-    private var themeState = mutableStateOf(loadSavedTheme())
-    private var activeHostIdState = mutableStateOf(prefs.getString("active_host_id", "win11") ?: "win11")
-    private var showThirdSlotState = mutableStateOf(prefs.getBoolean("show_third_slot", false))
-    private var jiggleWin11State = mutableStateOf(prefs.getBoolean("jiggle_win11", false))
-    private var jiggleMacState = mutableStateOf(prefs.getBoolean("jiggle_mac", false))
-    private var jiggleSlot3State = mutableStateOf(prefs.getBoolean("jiggle_slot3", false))
+    private val themeState by lazy { mutableStateOf(loadSavedTheme()) }
+    private val activeHostIdState by lazy { mutableStateOf(prefs.getString("active_host_id", "win11") ?: "win11") }
+    private val showThirdSlotState by lazy { mutableStateOf(prefs.getBoolean("show_third_slot", false)) }
+    private val jiggleWin11State by lazy { mutableStateOf(prefs.getBoolean("jiggle_win11", false)) }
+    private val jiggleMacState by lazy { mutableStateOf(prefs.getBoolean("jiggle_mac", false)) }
+    private val jiggleSlot3State by lazy { mutableStateOf(prefs.getBoolean("jiggle_slot3", false)) }
 
-    private var macWin11State = mutableStateOf(prefs.getString("mac_win11", null))
-    private var macMacBookState = mutableStateOf(prefs.getString("mac_macbook", null))
-    private var macSlot3State = mutableStateOf(prefs.getString("mac_slot3", null))
-    private var labelSlot3State = mutableStateOf(prefs.getString("label_slot3", "Host 3") ?: "Host 3")
-    private var osSlot3State = mutableStateOf(
-        runCatching { HostOs.valueOf(prefs.getString("os_slot3", HostOs.LINUX.name)!!) }
-            .getOrDefault(HostOs.LINUX)
-    )
+    private val macWin11State by lazy { mutableStateOf(prefs.getString("mac_win11", null)) }
+    private val macMacBookState by lazy { mutableStateOf(prefs.getString("mac_macbook", null)) }
+    private val macSlot3State by lazy { mutableStateOf(prefs.getString("mac_slot3", null)) }
+    private val labelSlot3State by lazy { mutableStateOf(prefs.getString("label_slot3", "Host 3") ?: "Host 3") }
+    private val osSlot3State by lazy {
+        mutableStateOf(
+            runCatching { HostOs.valueOf(prefs.getString("os_slot3", HostOs.LINUX.name)!!) }
+                .getOrDefault(HostOs.LINUX)
+        )
+    }
 
-    private var bondedDevicesState = mutableStateOf<List<BluetoothDevice>>(emptyList())
+    private val bondedDevicesState by lazy { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -261,12 +265,16 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED
         }
 
-        if (missing.isEmpty()) {
-            refreshBondedDevices()
-            startAndBindHidService()
-            requestIgnoreBatteryOptimizationsIfNeeded()
-        } else {
-            permissionLauncher.launch(missing.toTypedArray())
+        try {
+            if (missing.isEmpty()) {
+                refreshBondedDevices()
+                startAndBindHidService()
+                requestIgnoreBatteryOptimizationsIfNeeded()
+            } else {
+                permissionLauncher.launch(missing.toTypedArray())
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("MainActivity", "ensureRuntimePermissions: ${t.message}", t)
         }
     }
 
