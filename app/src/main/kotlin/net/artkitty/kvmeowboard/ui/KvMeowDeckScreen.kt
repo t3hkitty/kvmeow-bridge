@@ -609,6 +609,15 @@ fun KvMeowDeckScreen(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
+                    // Quick Macro Bar: Copy, Paste, Undo, Select All, Lock Host
+                    QuickMacroBar(
+                        activeOs = activeSlot.os,
+                        modifierMachine = modifierMachine,
+                        hidController = hidController
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
                     // Arrow Key Cluster directly beneath IME with quick Tab and Esc keys
                     Row(
                         modifier = Modifier.fillMaxWidth(),

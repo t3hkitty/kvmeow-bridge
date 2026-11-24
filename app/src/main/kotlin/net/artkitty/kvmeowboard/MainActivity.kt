@@ -122,47 +122,51 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            if (currentHid != null) {
-                KvMeowDeckScreen(
-                    themeMode = themeMode,
-                    onThemeChange = { nextTheme ->
-                        themeState.value = nextTheme
-                        prefs.edit().putString("theme_mode", nextTheme.name).apply()
-                    },
-                    hosts = hosts,
-                    bondedDevices = bonded,
-                    activeHostId = activeHostId,
-                    onSelectHost = { slot ->
-                        activeHostIdState.value = slot.id
-                        prefs.edit().putString("active_host_id", slot.id).apply()
-                        slot.device?.let { device ->
-                            currentHid.switchHost(device)
+            // Always provide or instantiate a controller so the UI never stays blank or crashes while binding
+            val hid = currentHid ?: remember { BluetoothHidController(this@MainActivity) }
+
+            KvMeowDeckScreen(
+                themeMode = themeMode,
+                onThemeChange = { nextTheme ->
+                    themeState.value = nextTheme
+                    prefs.edit().putString("theme_mode", nextTheme.name).apply()
+                },
+                hosts = hosts,
+                bondedDevices = bonded,
+                activeHostId = activeHostId,
+                onSelectHost = { slot ->
+                    activeHostIdState.value = slot.id
+                    prefs.edit().putString("active_host_id", slot.id).apply()
+                    slot.device?.let { device ->
+                        hid.switchHost(device)
+                    }
+                },
+                onToggleHostJiggle = { hostId ->
+                    when (hostId) {
+                        "win11" -> {
+                            val next = !jiggleWin11State.value
+                            jiggleWin11State.value = next
+                            prefs.edit().putBoolean("jiggle_win11", next).apply()
                         }
-                    },
-                    onToggleHostJiggle = { hostId ->
-                        when (hostId) {
-                            "win11" -> {
-                                val next = !jiggleWin11State.value
-                                jiggleWin11State.value = next
-                                prefs.edit().putBoolean("jiggle_win11", next).apply()
-                            }
-                            "macbook" -> {
-                                val next = !jiggleMacState.value
-                                jiggleMacState.value = next
-                                prefs.edit().putBoolean("jiggle_mac", next).apply()
-                            }
-                            "slot3" -> {
-                                val next = !jiggleSlot3State.value
-                                jiggleSlot3State.value = next
-                                prefs.edit().putBoolean("jiggle_slot3", next).apply()
-                            }
+                        "macbook" -> {
+                            val next = !jiggleMacState.value
+                            jiggleMacState.value = next
+                            prefs.edit().putBoolean("jiggle_mac", next).apply()
                         }
-                        syncJigglerTargetsToService()
+                        "slot3" -> {
+                            val next = !jiggleSlot3State.value
+                            jiggleSlot3State.value = next
+                            prefs.edit().putBoolean("jiggle_slot3", next).apply()
+                        }
+                    }
+                    syncJigglerTargetsToService()
+                    try {
                         TileService.requestListeningState(
-                            this,
-                            ComponentName(this, KvMeowJiggleTileService::class.java)
+                            this@MainActivity,
+                            ComponentName(this@MainActivity, KvMeowJiggleTileService::class.java)
                         )
-                    },
+                    } catch (_: Throwable) {}
+                },
                     showThirdSlotInSettings = showThirdSlot,
                     onToggleThirdSlotInSettings = { enabled ->
                         showThirdSlotState.value = enabled
@@ -196,11 +200,10 @@ class MainActivity : ComponentActivity() {
                             .apply()
                     },
                     onRefreshBondedDevices = { refreshBondedDevices() },
-                    hidController = currentHid,
+                    hidController = hid,
                     modifierMachine = modifierMachine,
                     calcController = calcController
                 )
-            }
         }
 
         ensureRuntimePermissions()
@@ -208,13 +211,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        jiggleWin11State.value = prefs.getBoolean("jiggle_win11", false)
-        jiggleMacState.value = prefs.getBoolean("jiggle_mac", false)
-        jiggleSlot3State.value = prefs.getBoolean("jiggle_slot3", false)
-        refreshBondedDevices()
-        GestureSuppressionHelper.suppressThreeFingerScreenshotIfRooted()
-        if (serviceBound) {
-            syncJigglerTargetsToService()
+        try {
+            jiggleWin11State.value = prefs.getBoolean("jiggle_win11", false)
+            jiggleMacState.value = prefs.getBoolean("jiggle_mac", false)
+            jiggleSlot3State.value = prefs.getBoolean("jiggle_slot3", false)
+            refreshBondedDevices()
+            GestureSuppressionHelper.suppressThreeFingerScreenshotIfRooted()
+            if (serviceBound) {
+                syncJigglerTargetsToService()
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("MainActivity", "onResume safe guard: ${t.message}", t)
         }
     }
 
@@ -227,7 +234,9 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         GestureSuppressionHelper.restoreSystemGestures()
         if (serviceBound) {
-            unbindService(serviceConnection)
+            try {
+                unbindService(serviceConnection)
+            } catch (_: Throwable) {}
             serviceBound = false
         }
         super.onDestroy()
@@ -262,19 +271,27 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startAndBindHidService() {
-        val intent = Intent(this, KvMeowHidService::class.java)
-        ContextCompat.startForegroundService(this, intent)
-        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        try {
+            val intent = Intent(this, KvMeowHidService::class.java)
+            ContextCompat.startForegroundService(this, intent)
+            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        } catch (t: Throwable) {
+            android.util.Log.e("MainActivity", "Error starting/binding KvMeowHidService: ${t.message}", t)
+        }
     }
 
     private fun requestIgnoreBatteryOptimizationsIfNeeded() {
-        val pm = getSystemService(PowerManager::class.java)
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            val intent = Intent(
-                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
+        try {
+            val pm = getSystemService(PowerManager::class.java) ?: return
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                val intent = Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:$packageName")
+                )
+                startActivity(intent)
+            }
+        } catch (t: Throwable) {
+            android.util.Log.w("MainActivity", "Battery optimization prompt skipped: ${t.message}")
         }
     }
 

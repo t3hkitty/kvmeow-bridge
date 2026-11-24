@@ -130,32 +130,40 @@ class BluetoothHidController(private val context: Context) {
     }
 
     fun registerApp() {
-        btAdapter?.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
-            override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
-                if (profile != BluetoothProfile.HID_DEVICE) return
-                hidDevice = proxy as BluetoothHidDevice
+        try {
+            btAdapter?.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
+                override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
+                    if (profile != BluetoothProfile.HID_DEVICE) return
+                    try {
+                        hidDevice = proxy as BluetoothHidDevice
 
-                val sdp = BluetoothHidDeviceAppSdpSettings(
-                    "KVMeowboard",
-                    "Composite Bluetooth HID Deck",
-                    "artkitty",
-                    BluetoothHidDevice.SUBCLASS1_COMBO, // 0xC0 -> Advertises as Keyboard + Mouse
-                    HidDescriptor.COMPOSITE_DESCRIPTOR
-                )
+                        val sdp = BluetoothHidDeviceAppSdpSettings(
+                            "KVMeowboard",
+                            "Composite Bluetooth HID Deck",
+                            "artkitty",
+                            BluetoothHidDevice.SUBCLASS1_COMBO, // 0xC0 -> Advertises as Keyboard + Mouse
+                            HidDescriptor.COMPOSITE_DESCRIPTOR
+                        )
 
-                val qosOut = BluetoothHidDeviceAppQosSettings(
-                    BluetoothHidDeviceAppQosSettings.SERVICE_BEST_EFFORT,
-                    800, 9, 0, 11250, BluetoothHidDeviceAppQosSettings.MAX
-                )
+                        val qosOut = BluetoothHidDeviceAppQosSettings(
+                            BluetoothHidDeviceAppQosSettings.SERVICE_BEST_EFFORT,
+                            800, 9, 0, 11250, BluetoothHidDeviceAppQosSettings.MAX
+                        )
 
-                hidDevice?.registerApp(sdp, null, qosOut, hidExecutor, appCallback)
-            }
+                        hidDevice?.registerApp(sdp, null, qosOut, hidExecutor, appCallback)
+                    } catch (t: Throwable) {
+                        android.util.Log.e("BluetoothHidController", "Error registering HID app: ${t.message}", t)
+                    }
+                }
 
-            override fun onServiceDisconnected(profile: Int) {
-                hidDevice = null
-                activeHost = null
-            }
-        }, BluetoothProfile.HID_DEVICE)
+                override fun onServiceDisconnected(profile: Int) {
+                    hidDevice = null
+                    activeHost = null
+                }
+            }, BluetoothProfile.HID_DEVICE)
+        } catch (t: Throwable) {
+            android.util.Log.e("BluetoothHidController", "Error requesting HID profile proxy: ${t.message}", t)
+        }
     }
 
     fun switchHost(target: BluetoothDevice) {
